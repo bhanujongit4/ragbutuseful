@@ -22,6 +22,7 @@ export async function POST(request) {
 
     return Response.json(result);
   } catch (error) {
+    console.error("RAG route error:", error);
     return Response.json(
       {
         error: error.message || "RAG pipeline failed.",
