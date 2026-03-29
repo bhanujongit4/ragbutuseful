@@ -14,6 +14,7 @@ const CHUNK_OVERLAP = 150;
 const TOP_K = 6;
 const MAX_COMPARE_HITS = 4;
 const MAX_HIT_CHARS = 600;
+const MASTER_DOC_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
 function cleanModelText(text) {
   const lines = String(text || "")
@@ -179,6 +180,44 @@ function setDocsForOwner(store, ownerKey, docs) {
   };
 }
 
+function isDocExpired(doc) {
+  const base = doc?.createdAt || doc?.updatedAt;
+  const ts = new Date(base || "").getTime();
+  if (Number.isNaN(ts)) return false;
+  return Date.now() - ts >= MASTER_DOC_TTL_MS;
+}
+
+async function purgeExpiredDocsAcrossOwners() {
+  const store = await readStore();
+  const owners = Object.keys(store.docsByOwner || {});
+  if (!owners.length) return;
+
+  const expiredByOwner = owners.map((ownerKey) => ({
+    ownerKey,
+    expired: docsForOwner(store, ownerKey).filter(isDocExpired),
+  }));
+
+  const hasExpired = expiredByOwner.some((entry) => entry.expired.length > 0);
+  if (!hasExpired) return;
+
+  const { apiKey, host } = await getOrCreateIntegratedIndex();
+  let nextStore = store;
+
+  for (const { ownerKey, expired } of expiredByOwner) {
+    if (!expired.length) continue;
+    const namespace = namespaceForOwner(ownerKey);
+    await Promise.all(
+      expired.map(async (doc) => {
+        await deleteMasterDocChunks(host, apiKey, namespace, doc.id);
+      }),
+    );
+    const remaining = docsForOwner(nextStore, ownerKey).filter((doc) => !isDocExpired(doc));
+    nextStore = setDocsForOwner(nextStore, ownerKey, remaining);
+  }
+
+  await writeStore(nextStore);
+}
+
 async function upsertMasterDocChunks(host, apiKey, namespace, chunks, docMeta) {
   const records = chunks.map((chunk, i) =>
     JSON.stringify({
@@ -339,6 +378,7 @@ function fallbackComparison(diffSummary, hits) {
 }
 
 export async function ingestMasterPdf(fileBuffer, originalName, titleInput, ownerKey) {
+  await purgeExpiredDocsAcrossOwners();
   const parsed = await pdfParse(fileBuffer);
   const chunks = chunkText(parsed.text);
   if (!chunks.length) {
@@ -368,11 +408,13 @@ export async function ingestMasterPdf(fileBuffer, originalName, titleInput, owne
 }
 
 export async function listMasterDocs(ownerKey) {
+  await purgeExpiredDocsAcrossOwners();
   const store = await readStore();
   return docsForOwner(store, ownerKey);
 }
 
 export async function deleteMasterDoc(docId, ownerKey) {
+  await purgeExpiredDocsAcrossOwners();
   const id = String(docId || "").trim();
   if (!id) throw new Error("docId is required.");
 
@@ -392,6 +434,7 @@ export async function deleteMasterDoc(docId, ownerKey) {
 }
 
 export async function updateMasterDocTitle(docId, title, ownerKey) {
+  await purgeExpiredDocsAcrossOwners();
   const id = String(docId || "").trim();
   const nextTitle = String(title || "").trim();
   if (!id) throw new Error("docId is required.");
@@ -411,6 +454,7 @@ export async function updateMasterDocTitle(docId, title, ownerKey) {
 }
 
 export async function compareDiffWithMasterDocs({ diffSummary, filePath, ownerKey }) {
+  await purgeExpiredDocsAcrossOwners();
   const summary = String(diffSummary || "").trim();
   const file = String(filePath || "").trim();
   if (!summary) throw new Error("diffSummary is required.");
