@@ -11,6 +11,22 @@ const STORE_FILE = path.join(STORE_DIR, "master-docs.json");
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 150;
 const TOP_K = 6;
+const MAX_COMPARE_HITS = 4;
+const MAX_HIT_CHARS = 600;
+
+function cleanModelText(text) {
+  const lines = String(text || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/\*\*/g, "")
+        .replace(/`/g, "")
+        .replace(/^[-*#>]+\s*/, "")
+        .trim(),
+    );
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 
 function chunkText(text, size = CHUNK_SIZE, overlap = CHUNK_OVERLAP) {
   const cleaned = text.replace(/\s+/g, " ").trim();
@@ -225,7 +241,14 @@ async function callOllamaCompare(guidelinesContext, diffSummary, filePath) {
         {
           role: "system",
           content:
-            "You review code changes against engineering guideline documents. Be concrete, practical, and cite guideline chunk labels.",
+            [
+              "You review code changes against engineering guideline excerpts.",
+              "Use only the provided excerpts as evidence.",
+              "Do not invent standards, frameworks, or policy not present in the excerpts.",
+              "Return plain text only. No markdown, no bullet symbols, no asterisks.",
+              "When you mention a rule, cite excerpt labels like [1] or [2].",
+              "If no excerpt is relevant, say: No relevant guideline match found.",
+            ].join(" "),
         },
         {
           role: "user",
@@ -238,10 +261,10 @@ async function callOllamaCompare(guidelinesContext, diffSummary, filePath) {
             "Guideline excerpts:",
             guidelinesContext,
             "",
-            "Return markdown with exactly these sections:",
-            "1) Alignment",
-            "2) Potential Violations",
-            "3) Suggested Follow-ups",
+            "Return exactly this structure in plain text:",
+            "Alignment:",
+            "Potential violations:",
+            "Suggested follow-ups:",
           ].join("\n"),
         },
       ],
@@ -253,31 +276,33 @@ async function callOllamaCompare(guidelinesContext, diffSummary, filePath) {
     throw new Error(`Ollama compare failed: ${response.status} ${raw}`);
   }
   const data = await response.json();
-  return data?.message?.content?.trim() || "No comparison returned.";
+  return cleanModelText(data?.message?.content || "No comparison returned.");
 }
 
 function fallbackComparison(diffSummary, hits) {
   const points = hits
     .slice(0, 3)
-    .map((hit) => `- ${hit.label} ${hit.docTitle || "Master doc"}: ${hit.text.slice(0, 180)}...`)
+    .map((hit) => `${hit.label} ${hit.docTitle || "Master doc"}: ${hit.text.slice(0, 180)}...`)
     .join("\n");
-  return [
-    "### Alignment",
-    "- Master docs were retrieved, but model comparison was unavailable.",
-    "",
-    "### Potential Violations",
-    "- Manual review recommended using the retrieved guideline snippets below.",
-    "",
-    "### Suggested Follow-ups",
-    "- Validate this diff summary against the retrieved chunks.",
-    "- Add tests for any rule-sensitive behavior.",
-    "",
-    "Retrieved guidance:",
-    points || "- No guideline chunks found.",
-    "",
-    "Diff summary:",
-    diffSummary,
-  ].join("\n");
+  return cleanModelText(
+    [
+      "Alignment:",
+      "Master docs were retrieved, but model comparison was unavailable.",
+      "",
+      "Potential violations:",
+      "Manual review recommended using the retrieved guideline snippets below.",
+      "",
+      "Suggested follow-ups:",
+      "Validate this diff summary against the retrieved chunks.",
+      "Add tests for any rule-sensitive behavior.",
+      "",
+      "Retrieved guidance:",
+      points || "No guideline chunks found.",
+      "",
+      "Diff summary:",
+      diffSummary,
+    ].join("\n"),
+  );
 }
 
 export async function ingestMasterPdf(fileBuffer, originalName, titleInput) {
@@ -361,13 +386,25 @@ export async function compareDiffWithMasterDocs({ diffSummary, filePath }) {
   const query = `${file}\n${summary}`;
   const hits = await searchMasterDocChunks(host, apiKey, query);
   const titleById = new Map(docs.map((doc) => [doc.id, doc.title]));
-  const normalizedHits = hits.map((hit) => ({
-    ...hit,
-    docTitle: titleById.get(hit.docId) || hit.docTitle,
-  }));
+  const normalizedHits = hits
+    .map((hit) => ({
+      ...hit,
+      docTitle: titleById.get(hit.docId) || hit.docTitle,
+    }))
+    .slice(0, MAX_COMPARE_HITS);
   const context = normalizedHits
-    .map((hit) => `${hit.label} (${hit.docTitle}) ${hit.text}`)
+    .map(
+      (hit) =>
+        `${hit.label} (${hit.docTitle}) ${String(hit.text || "").slice(0, MAX_HIT_CHARS)}`,
+    )
     .join("\n\n");
+
+  if (!context.trim()) {
+    return {
+      comment: "Alignment:\nNo relevant guideline match found.\n\nPotential violations:\nNo relevant guideline match found.\n\nSuggested follow-ups:\nUpload more specific master-doc guidance or refine the diff summary.",
+      sources: normalizedHits,
+    };
+  }
 
   let comment = "";
   try {

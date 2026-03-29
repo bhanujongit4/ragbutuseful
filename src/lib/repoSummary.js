@@ -3,6 +3,20 @@ const MAX_SUMMARY_FILES = 3;
 const MAX_COMMIT_DIFF_LINES = 200;
 const MAX_PATCH_LENGTH = 6000;
 
+function cleanModelText(text) {
+  const lines = String(text || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/\*\*/g, "")
+        .replace(/`/g, "")
+        .replace(/^[-*#>]+\s*/, "")
+        .trim(),
+    );
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function githubHeaders() {
   const token = process.env.GITHUB_TOKEN?.trim();
   return {
@@ -169,7 +183,7 @@ async function callOllamaDiffSummary(diffPatch, filePath, status) {
         {
           role: "system",
           content:
-            "Summarize git diffs for engineers. Keep it concise and concrete.",
+            "Summarize git diffs for engineers in plain text only. No markdown, no bullets, no asterisks.",
         },
         {
           role: "user",
@@ -177,10 +191,10 @@ async function callOllamaDiffSummary(diffPatch, filePath, status) {
             `File: ${filePath}`,
             `Change type: ${status}`,
             "",
-            "Return exactly 3 bullet points:",
-            "1) What changed",
-            "2) Why it matters",
-            "3) Risk or follow-up test to run",
+            "Return exactly 3 lines in this exact format:",
+            "What changed: ...",
+            "Why it matters: ...",
+            "Risk/test: ...",
             "",
             "Diff:",
             diffPatch,
@@ -196,17 +210,17 @@ async function callOllamaDiffSummary(diffPatch, filePath, status) {
   }
 
   const data = await response.json();
-  return data?.message?.content?.trim() || "No summary returned.";
+  return cleanModelText(data?.message?.content || "No summary returned.");
 }
 
 function fallbackDiffSummary(file) {
   const parts = [];
-  parts.push(`- ${file.status}: ${file.filename}`);
+  parts.push(`What changed: ${file.status}: ${file.filename}`);
   parts.push(
-    `- ${file.additions || 0} additions, ${file.deletions || 0} deletions (${file.changes || 0} total lines touched).`,
+    `Why it matters: ${file.additions || 0} additions, ${file.deletions || 0} deletions (${file.changes || 0} total lines touched).`,
   );
   if (!file.patch) {
-    parts.push("- Diff patch was unavailable (binary, large file, or rename-only).");
+    parts.push("Risk/test: Diff patch was unavailable (binary, large file, or rename-only).");
   } else {
     const preview = file.patch
       .split("\n")
@@ -215,10 +229,10 @@ function fallbackDiffSummary(file) {
       .map((line) => line.slice(0, 140))
       .join(" ");
     parts.push(
-      `- Preview: ${preview || "Text changes detected; inspect patch details in GitHub for full context."}`,
+      `Risk/test: ${preview || "Text changes detected; inspect patch details in GitHub for full context."}`,
     );
   }
-  return parts.join("\n");
+  return cleanModelText(parts.join("\n"));
 }
 
 async function summarizeChangedFile(file) {
