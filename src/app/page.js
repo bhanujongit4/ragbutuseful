@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function Page() {
+  const router = useRouter();
   const [pdf, setPdf] = useState(null);
   const [question, setQuestion] = useState("Summarize this PDF in 5 bullets.");
+  const [repoUrl, setRepoUrl] = useState("");
   const [answer, setAnswer] = useState("");
   const [sources, setSources] = useState([]);
   const [generationMode, setGenerationMode] = useState("");
@@ -68,6 +71,43 @@ export default function Page() {
     }
   }
 
+  function openRepoView(event) {
+    event.preventDefault();
+    setError("");
+
+    const value = repoUrl.trim();
+    if (!value) {
+      setError("Please enter a GitHub repository URL.");
+      return;
+    }
+
+    const shortMatch = value.match(
+      /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?$/,
+    );
+
+    if (shortMatch) {
+      router.push(`/repo/${encodeURIComponent(shortMatch[1])}/${encodeURIComponent(shortMatch[2])}`);
+      return;
+    }
+
+    try {
+      const parsed = new URL(value);
+      const host = parsed.hostname.toLowerCase();
+      if (host !== "github.com" && host !== "www.github.com") {
+        throw new Error("Only github.com URLs are supported.");
+      }
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      if (segments.length < 2) {
+        throw new Error("Please use URL like https://github.com/owner/repo");
+      }
+      const owner = segments[0];
+      const repo = segments[1].replace(/\.git$/, "");
+      router.push(`/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
+    } catch {
+      setError("Use a valid GitHub URL or owner/repo format.");
+    }
+  }
+
   function downloadEditableReport() {
     if (!reportText) return;
     const blob = new Blob([reportText], {
@@ -105,7 +145,25 @@ export default function Page() {
   return (
     <main className="rag-shell">
       <section className="rag-card">
-        <h1>PDF RAG (Upload + Ask)</h1>
+        <h1>RAG Workspace</h1>
+        <p className="muted">Use PDF Q&A or open a public GitHub diff-tree page.</p>
+
+        <form onSubmit={openRepoView} className="repo-form">
+          <label>
+            Public GitHub repo URL
+            <input
+              type="text"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/owner/repo"
+            />
+          </label>
+          <button type="submit">Open Repo Tree View</button>
+        </form>
+
+        <hr className="divider" />
+
+        <h2>PDF RAG (Upload + Ask)</h2>
         <p className="muted">
           Uses Pinecone cloud retrieval + Ollama generation.
         </p>

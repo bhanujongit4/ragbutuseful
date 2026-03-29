@@ -1,14 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --bg-1: #f4f7ff;
-  --bg-2: #eefcf6;
-  --card: #ffffff;
-  --text: #0f172a;
-  --muted: #475569;
-  --border: #cbd5e1;
+  --bg-1: #fdf6e6;
+  --bg-2: #d5f4e6;
+  --bg-3: #dbeafe;
+  --card: rgba(255, 255, 255, 0.84);
+  --text: #10243f;
+  --muted: #4a5c77;
+  --border: rgba(94, 126, 165, 0.26);
   --primary: #0f766e;
-  --primary-hover: #115e59;
+  --primary-hover: #0f5f74;
+  --accent: #0ea5e9;
+  --accent-soft: rgba(14, 165, 233, 0.12);
+  --changed: #dc6803;
+  --selected: #2563eb;
   --error: #b91c1c;
 }
 
@@ -19,15 +24,20 @@
 body {
   margin: 0;
   color: var(--text);
-  font-family: "Segoe UI", "Inter", sans-serif;
-  background: radial-gradient(circle at top left, var(--bg-1), var(--bg-2));
+  font-family: "Space Grotesk", "Segoe UI", "Avenir Next", sans-serif;
+  background:
+    radial-gradient(circle at 10% 0%, var(--bg-1), transparent 30%),
+    radial-gradient(circle at 85% 10%, var(--bg-2), transparent 36%),
+    radial-gradient(circle at 50% 100%, var(--bg-3), transparent 40%),
+    #f4f8fb;
+  min-height: 100vh;
 }
 
 .rag-shell {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 28px 16px;
 }
 
 .rag-card {
@@ -36,21 +46,59 @@ body {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 16px 44px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
 }
 
 .rag-card h1 {
   margin: 0;
+  font-size: clamp(1.6rem, 2.4vw, 2rem);
+}
+
+.rag-card h2 {
+  margin: 0;
+  font-size: 1.25rem;
 }
 
 .muted {
   color: var(--muted);
 }
 
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
+}
+
+.chip {
+  margin: 0 0 10px;
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #0c4a6e;
+  font-weight: 600;
+  font-size: 0.82rem;
+}
+
 .rag-form {
   display: grid;
   gap: 14px;
   margin-top: 14px;
+}
+
+.repo-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.repo-form label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
 }
 
 .rag-form label {
@@ -60,7 +108,8 @@ body {
 }
 
 .rag-form input,
-.rag-form textarea {
+.rag-form textarea,
+.repo-form input {
   width: 100%;
   font: inherit;
   padding: 10px 12px;
@@ -69,7 +118,8 @@ body {
   background: #fff;
 }
 
-.rag-form button {
+.rag-form button,
+.repo-form button {
   border: 0;
   background: var(--primary);
   color: #fff;
@@ -125,4 +175,211 @@ body {
 .result li {
   margin: 0 0 10px;
   color: #1e293b;
+}
+
+.repo-shell {
+  min-height: 100vh;
+  padding: 28px 14px;
+}
+
+.repo-card {
+  width: min(1200px, 100%);
+  margin: 0 auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow:
+    0 22px 44px rgba(15, 23, 42, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.repo-card.loading,
+.repo-card.error-card {
+  width: min(740px, 100%);
+}
+
+.repo-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.public-url-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.public-url-input {
+  flex: 1 1 320px;
+  min-width: 260px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  color: #0f172a;
+}
+
+.commit-strip {
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.65), rgba(241, 249, 255, 0.72));
+  padding: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.kicker {
+  margin: 0 0 6px;
+  color: #0369a1;
+  font-size: 0.83rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.commit-strip h2 {
+  margin: 0;
+  font-size: clamp(1rem, 2vw, 1.28rem);
+}
+
+.stats-row {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.stats-row article {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.stats-row h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.stats-row p {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+
+.repo-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.3fr);
+  gap: 12px;
+}
+
+.tree-panel,
+.summary-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px;
+}
+
+.tree-panel h3,
+.summary-panel h3 {
+  margin: 0;
+}
+
+.tree-scroll {
+  margin-top: 10px;
+  max-height: 62vh;
+  overflow: auto;
+}
+
+.tree-group {
+  display: grid;
+}
+
+.tree-row {
+  border: 0;
+  border-radius: 8px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  padding: 7px 8px;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tree-row:hover {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.tree-row.is-changed {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.tree-row.file.is-selected {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--selected);
+}
+
+.tree-icon {
+  width: 12px;
+  text-align: center;
+  flex: 0 0 12px;
+}
+
+.file-path {
+  margin: 10px 0 6px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.summary-text {
+  white-space: pre-wrap;
+  font-family: inherit;
+  margin: 10px 0;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px;
+  line-height: 1.45;
+}
+
+.ghost-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  background: #fff;
+  font-weight: 600;
+}
+
+.ghost-link.inline {
+  height: 34px;
+}
+
+.ghost-link:hover {
+  border-color: rgba(14, 116, 144, 0.42);
+  background: rgba(236, 253, 255, 0.8);
+}
+
+@media (max-width: 940px) {
+  .repo-grid {
+    grid-template-columns: 1fr;
+  }
 }
