@@ -156,7 +156,7 @@ async function upsertMasterDocChunks(host, apiKey, chunks, docMeta) {
 
 async function deleteMasterDocChunks(host, apiKey, docId) {
   await pineconeRequest(
-    `https://${host}/records/namespaces/${encodeURIComponent(MASTER_NAMESPACE)}/delete`,
+    `https://${host}/vectors/delete`,
     {
       method: "POST",
       headers: {
@@ -164,6 +164,7 @@ async function deleteMasterDocChunks(host, apiKey, docId) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        namespace: MASTER_NAMESPACE,
         filter: {
           doc_id: { $eq: docId },
         },
