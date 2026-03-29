@@ -1,20 +1,33 @@
 import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { v4 as uuidv4 } from "uuid";
 import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 
 const PINECONE_API = "https://api.pinecone.io";
 const PINECONE_API_VERSION = "2025-10";
 const MASTER_NAMESPACE_PREFIX = "master-docs";
-const STORE_DIR = path.join(process.cwd(), "data");
-const STORE_FILE = path.join(STORE_DIR, "master-docs.json");
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 150;
 const TOP_K = 6;
 const MAX_COMPARE_HITS = 4;
 const MAX_HIT_CHARS = 600;
 const MASTER_DOC_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+function getStorePaths() {
+  const configuredDir = process.env.MASTER_DOCS_STORE_DIR?.trim();
+  const baseDir = configuredDir
+    ? configuredDir
+    : process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+      ? path.join(tmpdir(), "ragteams")
+      : path.join(process.cwd(), "data");
+
+  return {
+    dir: baseDir,
+    file: path.join(baseDir, "master-docs.json"),
+  };
+}
 
 function cleanModelText(text) {
   const lines = String(text || "")
@@ -128,17 +141,19 @@ async function getOrCreateIntegratedIndex() {
 }
 
 async function ensureStore() {
-  await fs.mkdir(STORE_DIR, { recursive: true });
+  const { dir, file } = getStorePaths();
+  await fs.mkdir(dir, { recursive: true });
   try {
-    await fs.access(STORE_FILE);
+    await fs.access(file);
   } catch {
-    await fs.writeFile(STORE_FILE, JSON.stringify({ docs: [] }, null, 2), "utf8");
+    await fs.writeFile(file, JSON.stringify({ docs: [] }, null, 2), "utf8");
   }
 }
 
 async function readStore() {
   await ensureStore();
-  const raw = await fs.readFile(STORE_FILE, "utf8");
+  const { file } = getStorePaths();
+  const raw = await fs.readFile(file, "utf8");
   const data = raw ? JSON.parse(raw) : { docsByOwner: {} };
   if (data && typeof data === "object" && data.docsByOwner && typeof data.docsByOwner === "object") {
     return data;
@@ -151,7 +166,8 @@ async function readStore() {
 
 async function writeStore(store) {
   await ensureStore();
-  await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf8");
+  const { file } = getStorePaths();
+  await fs.writeFile(file, JSON.stringify(store, null, 2), "utf8");
 }
 
 function normalizeOwnerKey(ownerKey) {
