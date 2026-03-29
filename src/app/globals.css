@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --bg-1: #fdf6e6;
+  --bg-1: #c4c4c4;
   --bg-2: #d5f4e6;
   --bg-3: #dbeafe;
   --card: rgba(255, 255, 255, 0.84);
-  --text: #10243f;
+  --text: #000103;
   --muted: #4a5c77;
   --border: rgba(94, 126, 165, 0.26);
   --primary: #0f766e;
@@ -13,7 +13,7 @@
   --accent: #0ea5e9;
   --accent-soft: rgba(14, 165, 233, 0.12);
   --changed: #dc6803;
-  --selected: #2563eb;
+  --selected: #1657e4;
   --error: #b91c1c;
 }
 
@@ -48,7 +48,7 @@ body {
   padding: 24px;
   box-shadow:
     0 16px 44px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    inset 0 1px 0 rgba(187, 136, 136, 0.72);
   backdrop-filter: blur(6px);
 }
 
