@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Page() {
@@ -14,6 +14,29 @@ export default function Page() {
   const [reportText, setReportText] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [masterPdf, setMasterPdf] = useState(null);
+  const [masterTitle, setMasterTitle] = useState("");
+  const [masterDocs, setMasterDocs] = useState([]);
+  const [masterLoading, setMasterLoading] = useState(false);
+  const [masterError, setMasterError] = useState("");
+  const [editingDocId, setEditingDocId] = useState("");
+  const [editingTitle, setEditingTitle] = useState("");
+
+  async function loadMasterDocs() {
+    setMasterError("");
+    try {
+      const response = await fetch("/api/master-docs", { method: "GET" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Failed to load docs.");
+      setMasterDocs(payload.docs || []);
+    } catch (e) {
+      setMasterError(e.message || "Failed to load master docs.");
+    }
+  }
+
+  useEffect(() => {
+    loadMasterDocs();
+  }, []);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -108,6 +131,78 @@ export default function Page() {
     }
   }
 
+  async function uploadMasterDoc(event) {
+    event.preventDefault();
+    setMasterError("");
+    if (!masterPdf) {
+      setMasterError("Select a PDF for master docs.");
+      return;
+    }
+    setMasterLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("pdf", masterPdf);
+      formData.append("title", masterTitle);
+      const response = await fetch("/api/master-docs", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Upload failed.");
+      setMasterPdf(null);
+      setMasterTitle("");
+      await loadMasterDocs();
+    } catch (e) {
+      setMasterError(e.message || "Upload failed.");
+    } finally {
+      setMasterLoading(false);
+    }
+  }
+
+  async function deleteMasterDocById(docId) {
+    setMasterError("");
+    setMasterLoading(true);
+    try {
+      const response = await fetch("/api/master-docs", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Delete failed.");
+      await loadMasterDocs();
+    } catch (e) {
+      setMasterError(e.message || "Delete failed.");
+    } finally {
+      setMasterLoading(false);
+    }
+  }
+
+  async function saveDocTitle(docId) {
+    setMasterError("");
+    if (!editingTitle.trim()) {
+      setMasterError("Title cannot be empty.");
+      return;
+    }
+    setMasterLoading(true);
+    try {
+      const response = await fetch("/api/master-docs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId, title: editingTitle.trim() }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Rename failed.");
+      setEditingDocId("");
+      setEditingTitle("");
+      await loadMasterDocs();
+    } catch (e) {
+      setMasterError(e.message || "Rename failed.");
+    } finally {
+      setMasterLoading(false);
+    }
+  }
+
   function downloadEditableReport() {
     if (!reportText) return;
     const blob = new Blob([reportText], {
@@ -147,6 +242,88 @@ export default function Page() {
       <section className="rag-card">
         <h1>RAG Workspace</h1>
         <p className="muted">Use PDF Q&A or open a public GitHub diff-tree page.</p>
+
+        <form onSubmit={uploadMasterDoc} className="repo-form">
+          <p className="chip">Master Docs (Guidelines)</p>
+          <label>
+            Guideline PDF
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(e) => setMasterPdf(e.target.files?.[0] || null)}
+            />
+          </label>
+          <label>
+            Title (optional)
+            <input
+              type="text"
+              value={masterTitle}
+              onChange={(e) => setMasterTitle(e.target.value)}
+              placeholder="Engineering Guidelines v1"
+            />
+          </label>
+          <button type="submit" disabled={masterLoading}>
+            {masterLoading ? "Saving..." : "Save to Master Docs"}
+          </button>
+        </form>
+
+        {masterError ? <p className="error">{masterError}</p> : null}
+        <div className="master-list">
+          {(masterDocs || []).map((doc) => (
+            <article key={doc.id} className="master-item">
+              {editingDocId === doc.id ? (
+                <>
+                  <input
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    className="master-title-input"
+                  />
+                  <div className="actions">
+                    <button type="button" onClick={() => saveDocTitle(doc.id)}>
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDocId("");
+                        setEditingTitle("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="master-title">{doc.title}</p>
+                  <p className="muted">
+                    Chunks: {doc.chunkCount} | Updated:{" "}
+                    {new Date(doc.updatedAt || doc.createdAt).toLocaleString()}
+                  </p>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingDocId(doc.id);
+                        setEditingTitle(doc.title || "");
+                      }}
+                    >
+                      Edit title
+                    </button>
+                    <button type="button" onClick={() => deleteMasterDocById(doc.id)}>
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </article>
+          ))}
+          {!masterDocs.length ? (
+            <p className="muted">
+              No master docs yet. Upload at least one guideline PDF to enable repo comparisons.
+            </p>
+          ) : null}
+        </div>
 
         <form onSubmit={openRepoView} className="repo-form">
           <label>

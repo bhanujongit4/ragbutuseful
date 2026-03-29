@@ -82,6 +82,10 @@ export default function RepoPage() {
   const [selectedPath, setSelectedPath] = useState("");
   const [expanded, setExpanded] = useState(new Set([""]));
   const [publicUrl, setPublicUrl] = useState("");
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState("");
+  const [compareComment, setCompareComment] = useState("");
+  const [compareSources, setCompareSources] = useState([]);
 
   useEffect(() => {
     setPublicUrl(window.location.href);
@@ -128,6 +132,40 @@ export default function RepoPage() {
     if (!selectedPath || !data?.summaries) return null;
     return data.summaries[selectedPath] || null;
   }, [selectedPath, data]);
+
+  useEffect(() => {
+    setCompareError("");
+    setCompareComment("");
+    setCompareSources([]);
+  }, [selectedPath]);
+
+  async function runCompareWithMasterDoc() {
+    if (!selectedSummary || !selectedPath) return;
+    setCompareLoading(true);
+    setCompareError("");
+    setCompareComment("");
+    setCompareSources([]);
+    try {
+      const response = await fetch("/api/repo-compare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filePath: selectedPath,
+          diffSummary: selectedSummary.summary,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || "Comparison failed.");
+      }
+      setCompareComment(payload.comment || "");
+      setCompareSources(payload.sources || []);
+    } catch (compareErr) {
+      setCompareError(compareErr.message || "Comparison failed.");
+    } finally {
+      setCompareLoading(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -252,6 +290,28 @@ export default function RepoPage() {
                   {selectedSummary.deletions}
                 </p>
                 <pre className="summary-text">{selectedSummary.summary}</pre>
+                <button
+                  type="button"
+                  className="ghost-link inline"
+                  onClick={runCompareWithMasterDoc}
+                  disabled={compareLoading}
+                >
+                  {compareLoading ? "Comparing..." : "Compare with Master Doc"}
+                </button>
+                {compareError ? <p className="error">{compareError}</p> : null}
+                {compareComment ? <pre className="summary-text">{compareComment}</pre> : null}
+                {compareSources.length ? (
+                  <div className="sources-box">
+                    <p className="muted">Guideline sources used:</p>
+                    <ul>
+                      {compareSources.map((source) => (
+                        <li key={`${source.label}-${source.docId}-${source.score}`}>
+                          <strong>{source.label}</strong> {source.docTitle || "Master doc"}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {selectedSummary.blobUrl ? (
                   <a
                     href={selectedSummary.blobUrl}
