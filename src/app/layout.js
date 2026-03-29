@@ -1,8 +1,13 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "RAGGING IS BAD",
-  description: "",
+  title: "Emberline",
+  description: "Emberline is a warm, minimal workspace for PDF retrieval and repository intelligence.",
+  icons: {
+    icon: "/emberline-favicon.svg",
+    shortcut: "/emberline-favicon.svg",
+    apple: "/emberline-favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }) {

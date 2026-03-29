@@ -1,0 +1,19 @@
+<svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="emberline-favicon-core" x1="18" y1="16" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F97316" />
+      <stop offset="0.55" stop-color="#EA580C" />
+      <stop offset="1" stop-color="#DC2626" />
+    </linearGradient>
+    <linearGradient id="emberline-favicon-ring" x1="8" y1="8" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBBF24" />
+      <stop offset="0.5" stop-color="#F97316" />
+      <stop offset="1" stop-color="#DC2626" />
+    </linearGradient>
+  </defs>
+  <rect x="7" y="7" width="58" height="58" rx="18" fill="#FFF7ED" />
+  <rect x="7" y="7" width="58" height="58" rx="18" stroke="url(#emberline-favicon-ring)" stroke-width="2" />
+  <path d="M23 48L34 18H44L33 48H23Z" fill="url(#emberline-favicon-core)" />
+  <path d="M40 18H49L38 48H29L40 18Z" fill="#FDBA74" fill-opacity="0.8" />
+  <circle cx="49" cy="49" r="5" fill="#FBBF24" />
+</svg>

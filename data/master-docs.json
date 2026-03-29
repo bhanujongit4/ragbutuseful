@@ -1,13 +1,26 @@
 {
-  "docs": [
-    {
-      "id": "8b4f1400-753b-4bd4-a3ab-57e5fd109c4e",
-      "title": "masterdoc-1",
-      "originalName": "Architecture_ Semantic GitState RAG.pdf",
-      "createdAt": "2026-03-29T15:57:34.741Z",
-      "updatedAt": "2026-03-29T15:57:34.741Z",
-      "chunkCount": 6,
-      "namespace": "master-docs"
-    }
-  ]
+  "docsByOwner": {
+    "anonymous": [
+      {
+        "id": "8b4f1400-753b-4bd4-a3ab-57e5fd109c4e",
+        "title": "masterdoc-1",
+        "originalName": "Architecture_ Semantic GitState RAG.pdf",
+        "createdAt": "2026-03-29T15:57:34.741Z",
+        "updatedAt": "2026-03-29T15:57:34.741Z",
+        "chunkCount": 6,
+        "namespace": "master-docs"
+      }
+    ],
+    "56480045-4742-4b0c-b008-a953280c6aeb": [
+      {
+        "id": "01b813e8-51f2-44d2-b369-3154eb867b8b",
+        "title": "ujhbhj",
+        "originalName": "Architecture_ Semantic GitState RAG.pdf",
+        "createdAt": "2026-03-29T17:12:32.488Z",
+        "updatedAt": "2026-03-29T17:12:32.488Z",
+        "chunkCount": 6,
+        "namespace": "master-docs-c1dff3dc95af062dd766afb3"
+      }
+    ]
+  }
 }
