@@ -4,10 +4,12 @@ export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
+    const ownerKey = request.headers.get("x-ragteams-client-id") || "anonymous";
     const body = await request.json();
     const result = await compareDiffWithMasterDocs({
       diffSummary: body?.diffSummary,
       filePath: body?.filePath,
+      ownerKey,
     });
     return Response.json(result);
   } catch (error) {
@@ -17,4 +19,3 @@ export async function POST(request) {
     );
   }
 }
-

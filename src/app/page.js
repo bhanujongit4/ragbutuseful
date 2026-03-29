@@ -3,6 +3,18 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+const CLIENT_ID_KEY = "ragteams_client_id";
+
+function getClientId() {
+  if (typeof window === "undefined") return "anonymous";
+  let id = window.localStorage.getItem(CLIENT_ID_KEY);
+  if (!id) {
+    id = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    window.localStorage.setItem(CLIENT_ID_KEY, id);
+  }
+  return id;
+}
+
 export default function Page() {
   const router = useRouter();
   const [pdf, setPdf] = useState(null);
@@ -25,7 +37,10 @@ export default function Page() {
   async function loadMasterDocs() {
     setMasterError("");
     try {
-      const response = await fetch("/api/master-docs", { method: "GET" });
+      const response = await fetch("/api/master-docs", {
+        method: "GET",
+        headers: { "x-ragteams-client-id": getClientId() },
+      });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Failed to load docs.");
       setMasterDocs(payload.docs || []);
@@ -145,6 +160,7 @@ export default function Page() {
       formData.append("title", masterTitle);
       const response = await fetch("/api/master-docs", {
         method: "POST",
+        headers: { "x-ragteams-client-id": getClientId() },
         body: formData,
       });
       const payload = await response.json();
@@ -165,7 +181,10 @@ export default function Page() {
     try {
       const response = await fetch("/api/master-docs", {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-ragteams-client-id": getClientId(),
+        },
         body: JSON.stringify({ docId }),
       });
       const payload = await response.json();
@@ -188,7 +207,10 @@ export default function Page() {
     try {
       const response = await fetch("/api/master-docs", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-ragteams-client-id": getClientId(),
+        },
         body: JSON.stringify({ docId, title: editingTitle.trim() }),
       });
       const payload = await response.json();

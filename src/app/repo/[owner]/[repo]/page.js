@@ -3,6 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
+const CLIENT_ID_KEY = "ragteams_client_id";
+
+function getClientId() {
+  if (typeof window === "undefined") return "anonymous";
+  let id = window.localStorage.getItem(CLIENT_ID_KEY);
+  if (!id) {
+    id = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    window.localStorage.setItem(CLIENT_ID_KEY, id);
+  }
+  return id;
+}
+
 function formatDate(dateString) {
   if (!dateString) return "Unknown date";
   const date = new Date(dateString);
@@ -148,7 +160,10 @@ export default function RepoPage() {
     try {
       const response = await fetch("/api/repo-compare", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-ragteams-client-id": getClientId(),
+        },
         body: JSON.stringify({
           filePath: selectedPath,
           diffSummary: selectedSummary.summary,

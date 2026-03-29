@@ -2,10 +2,11 @@ import pdfParse from "pdf-parse/lib/pdf-parse.js";
 import { v4 as uuidv4 } from "uuid";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const PINECONE_API = "https://api.pinecone.io";
 const PINECONE_API_VERSION = "2025-10";
-const MASTER_NAMESPACE = "master-docs";
+const MASTER_NAMESPACE_PREFIX = "master-docs";
 const STORE_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(STORE_DIR, "master-docs.json");
 const CHUNK_SIZE = 1000;
@@ -137,8 +138,14 @@ async function ensureStore() {
 async function readStore() {
   await ensureStore();
   const raw = await fs.readFile(STORE_FILE, "utf8");
-  const data = raw ? JSON.parse(raw) : { docs: [] };
-  return Array.isArray(data.docs) ? data : { docs: [] };
+  const data = raw ? JSON.parse(raw) : { docsByOwner: {} };
+  if (data && typeof data === "object" && data.docsByOwner && typeof data.docsByOwner === "object") {
+    return data;
+  }
+  if (Array.isArray(data?.docs)) {
+    return { docsByOwner: { anonymous: data.docs } };
+  }
+  return { docsByOwner: {} };
 }
 
 async function writeStore(store) {
@@ -146,7 +153,33 @@ async function writeStore(store) {
   await fs.writeFile(STORE_FILE, JSON.stringify(store, null, 2), "utf8");
 }
 
-async function upsertMasterDocChunks(host, apiKey, chunks, docMeta) {
+function normalizeOwnerKey(ownerKey) {
+  return String(ownerKey || "").trim() || "anonymous";
+}
+
+function namespaceForOwner(ownerKey) {
+  const normalized = normalizeOwnerKey(ownerKey);
+  const hash = createHash("sha256").update(normalized).digest("hex").slice(0, 24);
+  return `${MASTER_NAMESPACE_PREFIX}-${hash}`;
+}
+
+function docsForOwner(store, ownerKey) {
+  const key = normalizeOwnerKey(ownerKey);
+  return Array.isArray(store.docsByOwner?.[key]) ? store.docsByOwner[key] : [];
+}
+
+function setDocsForOwner(store, ownerKey, docs) {
+  const key = normalizeOwnerKey(ownerKey);
+  return {
+    ...store,
+    docsByOwner: {
+      ...(store.docsByOwner || {}),
+      [key]: docs,
+    },
+  };
+}
+
+async function upsertMasterDocChunks(host, apiKey, namespace, chunks, docMeta) {
   const records = chunks.map((chunk, i) =>
     JSON.stringify({
       _id: `${docMeta.id}::${i + 1}`,
@@ -158,7 +191,7 @@ async function upsertMasterDocChunks(host, apiKey, chunks, docMeta) {
   );
 
   await pineconeRequest(
-    `https://${host}/records/namespaces/${encodeURIComponent(MASTER_NAMESPACE)}/upsert`,
+    `https://${host}/records/namespaces/${encodeURIComponent(namespace)}/upsert`,
     {
       method: "POST",
       headers: {
@@ -170,7 +203,7 @@ async function upsertMasterDocChunks(host, apiKey, chunks, docMeta) {
   );
 }
 
-async function deleteMasterDocChunks(host, apiKey, docId) {
+async function deleteMasterDocChunks(host, apiKey, namespace, docId) {
   await pineconeRequest(
     `https://${host}/vectors/delete`,
     {
@@ -180,7 +213,7 @@ async function deleteMasterDocChunks(host, apiKey, docId) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        namespace: MASTER_NAMESPACE,
+        namespace,
         filter: {
           doc_id: { $eq: docId },
         },
@@ -189,9 +222,9 @@ async function deleteMasterDocChunks(host, apiKey, docId) {
   );
 }
 
-async function searchMasterDocChunks(host, apiKey, query) {
+async function searchMasterDocChunks(host, apiKey, namespace, query) {
   const result = await pineconeRequest(
-    `https://${host}/records/namespaces/${encodeURIComponent(MASTER_NAMESPACE)}/search`,
+    `https://${host}/records/namespaces/${encodeURIComponent(namespace)}/search`,
     {
       method: "POST",
       headers: {
@@ -305,13 +338,14 @@ function fallbackComparison(diffSummary, hits) {
   );
 }
 
-export async function ingestMasterPdf(fileBuffer, originalName, titleInput) {
+export async function ingestMasterPdf(fileBuffer, originalName, titleInput, ownerKey) {
   const parsed = await pdfParse(fileBuffer);
   const chunks = chunkText(parsed.text);
   if (!chunks.length) {
     throw new Error("Could not extract readable text from master PDF.");
   }
 
+  const namespace = namespaceForOwner(ownerKey);
   const title = (titleInput || "").trim() || originalName || `master-doc-${Date.now()}.pdf`;
   const doc = {
     id: uuidv4(),
@@ -320,71 +354,76 @@ export async function ingestMasterPdf(fileBuffer, originalName, titleInput) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     chunkCount: chunks.length,
-    namespace: MASTER_NAMESPACE,
+    namespace,
   };
 
   const { apiKey, host } = await getOrCreateIntegratedIndex();
-  await upsertMasterDocChunks(host, apiKey, chunks, doc);
+  await upsertMasterDocChunks(host, apiKey, namespace, chunks, doc);
 
   const store = await readStore();
-  store.docs.unshift(doc);
-  await writeStore(store);
+  const docs = docsForOwner(store, ownerKey);
+  docs.unshift(doc);
+  await writeStore(setDocsForOwner(store, ownerKey, docs));
   return doc;
 }
 
-export async function listMasterDocs() {
+export async function listMasterDocs(ownerKey) {
   const store = await readStore();
-  return store.docs;
+  return docsForOwner(store, ownerKey);
 }
 
-export async function deleteMasterDoc(docId) {
+export async function deleteMasterDoc(docId, ownerKey) {
   const id = String(docId || "").trim();
   if (!id) throw new Error("docId is required.");
 
   const store = await readStore();
-  const exists = store.docs.find((doc) => doc.id === id);
+  const docs = docsForOwner(store, ownerKey);
+  const exists = docs.find((doc) => doc.id === id);
   if (!exists) {
     throw new Error("Master doc not found.");
   }
 
   const { apiKey, host } = await getOrCreateIntegratedIndex();
-  await deleteMasterDocChunks(host, apiKey, id);
-  store.docs = store.docs.filter((doc) => doc.id !== id);
-  await writeStore(store);
+  const namespace = namespaceForOwner(ownerKey);
+  await deleteMasterDocChunks(host, apiKey, namespace, id);
+  const remaining = docs.filter((doc) => doc.id !== id);
+  await writeStore(setDocsForOwner(store, ownerKey, remaining));
   return { deleted: true, docId: id };
 }
 
-export async function updateMasterDocTitle(docId, title) {
+export async function updateMasterDocTitle(docId, title, ownerKey) {
   const id = String(docId || "").trim();
   const nextTitle = String(title || "").trim();
   if (!id) throw new Error("docId is required.");
   if (!nextTitle) throw new Error("title is required.");
 
   const store = await readStore();
-  const idx = store.docs.findIndex((doc) => doc.id === id);
+  const docs = docsForOwner(store, ownerKey);
+  const idx = docs.findIndex((doc) => doc.id === id);
   if (idx < 0) throw new Error("Master doc not found.");
-  store.docs[idx] = {
-    ...store.docs[idx],
+  docs[idx] = {
+    ...docs[idx],
     title: nextTitle,
     updatedAt: new Date().toISOString(),
   };
-  await writeStore(store);
-  return store.docs[idx];
+  await writeStore(setDocsForOwner(store, ownerKey, docs));
+  return docs[idx];
 }
 
-export async function compareDiffWithMasterDocs({ diffSummary, filePath }) {
+export async function compareDiffWithMasterDocs({ diffSummary, filePath, ownerKey }) {
   const summary = String(diffSummary || "").trim();
   const file = String(filePath || "").trim();
   if (!summary) throw new Error("diffSummary is required.");
 
-  const docs = await listMasterDocs();
+  const docs = await listMasterDocs(ownerKey);
   if (!docs.length) {
     throw new Error("No master docs found. Upload at least one guideline PDF first.");
   }
 
   const { apiKey, host } = await getOrCreateIntegratedIndex();
+  const namespace = namespaceForOwner(ownerKey);
   const query = `${file}\n${summary}`;
-  const hits = await searchMasterDocChunks(host, apiKey, query);
+  const hits = await searchMasterDocChunks(host, apiKey, namespace, query);
   const titleById = new Map(docs.map((doc) => [doc.id, doc.title]));
   const normalizedHits = hits
     .map((hit) => ({

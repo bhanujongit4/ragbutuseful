@@ -7,9 +7,13 @@ import {
 
 export const runtime = "nodejs";
 
-export async function GET() {
+function ownerKeyFromRequest(request) {
+  return request.headers.get("x-ragteams-client-id") || "anonymous";
+}
+
+export async function GET(request) {
   try {
-    const docs = await listMasterDocs();
+    const docs = await listMasterDocs(ownerKeyFromRequest(request));
     return Response.json({ docs });
   } catch (error) {
     return Response.json(
@@ -21,6 +25,7 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const ownerKey = ownerKeyFromRequest(request);
     const formData = await request.formData();
     const pdf = formData.get("pdf");
     const title = formData.get("title");
@@ -31,7 +36,12 @@ export async function POST(request) {
 
     const bytes = await pdf.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const doc = await ingestMasterPdf(buffer, pdf.name, typeof title === "string" ? title : "");
+    const doc = await ingestMasterPdf(
+      buffer,
+      pdf.name,
+      typeof title === "string" ? title : "",
+      ownerKey,
+    );
     return Response.json({ doc });
   } catch (error) {
     return Response.json(
@@ -43,8 +53,9 @@ export async function POST(request) {
 
 export async function PATCH(request) {
   try {
+    const ownerKey = ownerKeyFromRequest(request);
     const body = await request.json();
-    const updated = await updateMasterDocTitle(body?.docId, body?.title);
+    const updated = await updateMasterDocTitle(body?.docId, body?.title, ownerKey);
     return Response.json({ doc: updated });
   } catch (error) {
     return Response.json(
@@ -56,8 +67,9 @@ export async function PATCH(request) {
 
 export async function DELETE(request) {
   try {
+    const ownerKey = ownerKeyFromRequest(request);
     const body = await request.json();
-    const result = await deleteMasterDoc(body?.docId);
+    const result = await deleteMasterDoc(body?.docId, ownerKey);
     return Response.json(result);
   } catch (error) {
     return Response.json(
@@ -66,4 +78,3 @@ export async function DELETE(request) {
     );
   }
 }
-
