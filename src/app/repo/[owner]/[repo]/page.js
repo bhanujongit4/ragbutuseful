@@ -406,7 +406,7 @@ export default function RepoPage() {
               {publicUrl ? (
                 <div className="flex flex-col gap-3 rounded-[24px] border border-[#f0d4c1] bg-white px-4 py-4 sm:flex-row sm:items-center">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#b45309]">Shareable view</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#b45309]">Shareable view<  sigma , this is just for testing /p>
                     <p className="mt-2 break-all text-sm text-[#845946]">{publicUrl}</p>
                   </div>
                   <button
